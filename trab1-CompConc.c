@@ -26,7 +26,22 @@ typedef struct
     int id;
     int dim;
 } argType;
-//função utilizada para comparar floats com a precisão de 10
+
+//calcula a aceleração do programa com sua versão concorrente.
+void aceleration(double delta_conc, double delta_seq, double delta_seq_total){
+    double aceleration = delta_seq_total / (delta_conc + delta_seq);
+    if(aceleration > 1.0){
+        double gain = (aceleration - 1.0)*100;
+        printf("O programa teve um ganho de desempenho de aproximadamente %.0f%% utilizando %d threads\n", gain, nthreads);
+    }else if(aceleration < 1.0){
+        double loss = (1.0 - aceleration)*100;
+        printf("O programa teve uma perda de desempenho de aproximadamente %.0f%% utilizando %d threads\n", loss, nthreads);
+    }else{
+        printf("O programa não apresentou uma alteração em seu desempenho, utilizando %d threads\n", nthreads);
+    }
+}
+
+//função utilizada para comparar floats com a precisão de 10³
 int compare_float(float x, float y, float epsilon){
     if(x > y){
         if((x - y) < epsilon){
@@ -243,8 +258,8 @@ int main(int argc, char **argv)
     int dim;
     pthread_t *tid;
     argType *args;
-	double start, end, delta;
-
+	double start, end, delta, delta_aloc, delta_free, delta_conc, delta_seq;
+    GET_TIME(start);
     if (argc < 3)
     {
         printf("Digite: %s <dimensao da matriz> <numero de threads>\n", argv[1]);
@@ -290,7 +305,9 @@ int main(int argc, char **argv)
         puts("ERRO--malloc");
         return 2;
     }
-
+    GET_TIME(end);
+    delta_aloc = end - start;
+    printf("Tempo utilizado para alocar e inicializar as variáveis do projeto: %lf segundos.\n", delta);
     GET_TIME(start);
     for (int i = 0; i < nthreads; i++)
     {
@@ -308,15 +325,15 @@ int main(int argc, char **argv)
         pthread_join(*(tid + i), NULL);
     }
 	GET_TIME(end)
-	delta = end - start;
-    printf("Tempo de execução concorrente: %lf segundos.\n", delta);
+	delta_conc = end - start;
+    printf("Tempo de execução concorrente: %lf segundos.\n", delta_conc);
     
     GET_TIME(start);
     task_sequential(dim);
 	GET_TIME(end)
-	delta = end - start;
-    printf("Tempo de execução sequencial: %lf segundos.\n", delta);
-    
+	delta_seq = end - start;
+    printf("Tempo de execução sequencial: %lf segundos.\n", delta_seq);
+    GET_TIME(start);
     free(tid);
     free(args);
     int test1 = consistency_test(M1,M1Seq, dim);
@@ -326,6 +343,9 @@ int main(int argc, char **argv)
     //print_matrix(M1, dim); //printa a aproximação calculada.
     //print_matrix(lastItr, dim);
     destructor();
-
+    GET_TIME(end);
+    delta_free = end - start;
+    printf("Tempo utilizado para realizar os testes e liberar a memória alocada: %lf segundos.\n", delta);
+    aceleration(delta_conc, delta_aloc + delta_free, delta_seq + delta_aloc + delta_free);
     return 0;
 }
