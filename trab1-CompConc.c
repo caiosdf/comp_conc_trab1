@@ -19,12 +19,28 @@ float *M1, *M2,*M1Seq, *M2Seq, *lastItr;
 pthread_mutex_t barrier;
 pthread_cond_t go;
 int narrived = 0, nthreads, sequencial_executed = 0; 
+float epsilon = 0.001f;
 
 typedef struct
 {
     int id;
     int dim;
 } argType;
+//função utilizada para comparar floats com a precisão de 10
+int compare_float(float x, float y, float epsilon){
+    if(x > y){
+        if((x - y) < epsilon){
+            return 1;
+        }
+        else return 0;
+    }
+    else{
+        if((y - x) < epsilon){
+            return 1;
+        }
+        else return 0;
+    }
+}
 void Barrier(){
     pthread_mutex_lock(&barrier);
     narrived++;
@@ -158,6 +174,21 @@ int task_sequential(int dim){
             newSeq = M1Seq;
         }
 
+        if(i == MAX_ITERATIONS - 1){
+            for (int row = 1; row < dim - 1; row ++)
+            {
+                for (int col = 1; col < dim - 1; col++)
+                {
+                    lastItr[row * dim + col] = oldSeq[row * dim + col];
+                    newSeq[row * dim + col] = 0.25 * oldSeq[((row - 1) * dim + col)];
+                    newSeq[row * dim + col] += 0.25 * oldSeq[((row + 1) * dim + col)];
+                    newSeq[row * dim + col] += 0.25 * oldSeq[(row * dim + (col - 1))];
+                    newSeq[row * dim + col] += 0.25 * oldSeq[(row * dim + (col + 1))];
+                }
+            }
+            continue;
+        }
+
         for (int row = 1; row < dim - 1; row ++)
         {
             for (int col = 1; col < dim - 1; col++)
@@ -166,7 +197,6 @@ int task_sequential(int dim){
                 newSeq[row * dim + col] += 0.25 * oldSeq[((row + 1) * dim + col)];
                 newSeq[row * dim + col] += 0.25 * oldSeq[(row * dim + (col - 1))];
                 newSeq[row * dim + col] += 0.25 * oldSeq[(row * dim + (col + 1))];
-                lastItr[row * dim + col] = oldSeq[row * dim + col];
             }
         }
         
@@ -193,12 +223,16 @@ int coherence_test(float *A, int dim){
     if(!sequencial_executed) task_sequential(dim);
     for(int i = 1; i < dim - 1; i++){
         for(int j = 1; j < dim - 1; j++){
-            float expected_value =  0.25 * lastItr[((i - 1) * dim + j)] + 0.25 * lastItr[((i + 1) * dim + j)] + 0.25 * lastItr[(i * dim + (j - 1))] + 0.25 * lastItr[(i * dim + (j + 1))];
-            if(A[i*dim + j] != expected_value){
+            float expected_value =  (0.25 * lastItr[((i - 1) * dim + j)]) + (0.25 * lastItr[((i + 1) * dim + j)]) + (0.25 * lastItr[(i * dim + (j - 1))]) + (0.25 * lastItr[(i * dim + (j + 1))]);
+            if(!compare_float(A[i*dim+j], expected_value, epsilon)){
+                printf("%d\n", i*dim + j);
+                printf("%.10f\n", A[i*dim + j]);
+                printf("%.10f\n", expected_value);
                 printf("ERRO: incoerência nos resultados\n");
                 destructor();
                 return 5;
             }
+            expected_value = 0;
         }
     }
     return 0;
